@@ -1,0 +1,37 @@
+<?xml version="1.0" ?>
+<launch>
+
+    <!-- Load the kalman filter model -->
+    <rosparam command="load" file="$(find followme)/kf_models/model_uniform_acceleration_params.yaml" ns="target_estimation"/>
+
+    <!-- Load the followme params -->
+    <rosparam command="load" file="$(find followme)/params/followme_guida_params.yaml" />
+
+    <!-- Load the followperson local planner params for follownearby  -->
+    <rosparam command="load" file="$(find followme)/params/followperson_local_planner.yaml" />
+
+    <!-- launch track person node -->
+    <node name="track_person_node" pkg="followme" type="track_person_node.py" respawn="false" output="screen" />
+
+    <!-- Spawn the target node -->
+    <include file="$(find target_estimation)/launch/target_node_spawn.launch">
+        <arg name="token" value="target"/>
+        <arg name="timeout" value="2.5"/>
+        <arg name="output" value="log"/>
+    </include>
+
+    <!-- Start the move base controller node -->
+    <node name="followme_node" pkg="followme"
+          type="followme_node" respawn="false" output="screen" />
+
+    <!-- <node name="obstacle_avoidance_node" pkg="followme" type="obstacle_avoidance_node" respawn="false" output="screen" /> -->
+
+    <!-- Launch RViz with saved configuration -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find followme)/rviz/rviz_config.rviz" />
+
+    <!-- Launch File for the Guida with internal map -->
+    
+    <!-- Spawn the target node -->
+    <include file="$(find followme)/launch/move_base.launch"/>
+
+</launch>

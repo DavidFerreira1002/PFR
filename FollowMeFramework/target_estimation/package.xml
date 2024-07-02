@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>target_estimation</name>
+  <version>0.0.1</version>
+  <description>The target_estimation package</description>
+  <maintainer email="gennaro.raiola@gmail.com">TODO</maintainer>
+  <author>Gennaro Raiola</author>
+  <license>GNU General Public License v3.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend condition="$rt_logger_FOUND == true">rt_logger</depend>
+  <depend>tf</depend>
+  <depend>geometry_msgs</depend>
+
+  <export>
+  </export>
+</package>

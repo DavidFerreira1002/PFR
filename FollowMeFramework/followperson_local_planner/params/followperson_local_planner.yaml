@@ -1,0 +1,11 @@
+base_local_planner: "followperson_local_planner/FollowPersonLocalPlanner"
+
+FollowPersonLocalPlanner:
+  xy_goal_tolerance: 0.4
+  yaw_goal_tolerance: 0.2
+  distance_to_person: 1.0
+  prop_gain: 1.0 #proportional gain used in facing the target
+  deriv_gain: 0.1 #derivative gain used in facing the target
+  max_ang_facing_vel: 1.0 #maximum angular velocity used in facing the target
+  
+#params for the TrajectoryPlannerROS are on the base_local_planner_param.yaml file

@@ -1,0 +1,19 @@
+# Parameters for ProxemicLayer
+proxemic_layer_params:
+  enabled: false
+  cutoff: 10.0
+  amplitude: 77.0
+  covariance: 0.25
+  factor: 5.0
+  keep_time: 0.75
+
+# Parameters for PassingLayer
+passing_layer_params:
+  enabled: false
+  cutoff: 10.0
+  amplitude: 77.0
+  covariance: 0.25
+  factor: 5.0
+  keep_time: 0.75
+
+#NOT DOING ANYTHING RIGHT NOW

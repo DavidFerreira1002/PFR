@@ -1,0 +1,11 @@
+Metadata-Version: 1.0
+Name: MMT
+Version: 1.1.0
+Summary: Pytorch Library of Mutual Mean-Teaching for Unsupervised Domain Adaptation on Person Re-identification
+Home-page: https://github.com/yxgeee/MMT.git
+Author: Yixiao Ge
+Author-email: yxge@link.cuhk.edu.hk
+License: UNKNOWN
+Description: UNKNOWN
+Keywords: Unsupervised Domain Adaptation,Person Re-identification,Deep Learning
+Platform: UNKNOWN

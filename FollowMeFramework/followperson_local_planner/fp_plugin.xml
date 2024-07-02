@@ -1,0 +1,7 @@
+<library path="lib/libfollowperson_local_planner">
+  <class name="followperson_local_planner/FollowPersonLocalPlanner" type="followperson_local_planner::FollowPersonLocalPlanner" base_class_type="nav_core::BaseLocalPlanner">
+    <description>
+      Follow Person Local Planner to prioritize facing a target person while navigating.
+    </description>
+  </class>
+</library>

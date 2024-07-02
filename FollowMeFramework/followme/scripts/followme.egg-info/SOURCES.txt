@@ -1,0 +1,12 @@
+setup.py
+scripts/followme.egg-info/PKG-INFO
+scripts/followme.egg-info/SOURCES.txt
+scripts/followme.egg-info/dependency_links.txt
+scripts/followme.egg-info/top_level.txt
+scripts/followme_py_pkg/HandPoseInference.py
+scripts/followme_py_pkg/KalmanFilter3D.py
+scripts/followme_py_pkg/PersonManager.py
+scripts/followme_py_pkg/Reidentificator.py
+scripts/followme_py_pkg/__init__.py
+scripts/followme_py_pkg/ddekf.py
+scripts/followme_py_pkg/mp_segment.py

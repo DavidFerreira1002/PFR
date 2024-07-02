@@ -1,0 +1,7 @@
+Pillow
+h5py
+metric-learn
+numpy
+scikit-learn
+scipy
+six

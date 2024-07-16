@@ -125,7 +125,8 @@ if __name__ == '__main__':
     # Load detector
     #yolact_weights = os.path.join(weights_dir, "yolact_plus_resnet50_54_800000.pth")
     #yolact = YolactInference(model_weights=yolact_weights, display_img=display_img_results)
-    mediapipe_weights = os.path.join(weights_dir_mp,"efficientdet_lite0.tflite")
+    #mediapipe_weights = os.path.join(weights_dir_mp,"efficientdet_lite0.tflite")
+    mediapipe_weights = os.path.join(weights_dir_mp,"ssd_mobilenet_v2.tflite")
     mediapipe_model = MediapipeInstanceSegmentation(mediapipe_weights,display=display_img_results)
 
     # Load reidentificator ros params
@@ -133,7 +134,7 @@ if __name__ == '__main__':
     calibration_filename = rospy.get_param('reidentificator/calibration_filename', "calibration_default.pkl")
     calibration_dir = pkg_dir_name + "/calibrations"
     calibration_path = os.path.join(calibration_dir, calibration_filename)
-    mmt_weights = os.path.join(weights_dir, "old_pytorch_resnet_ibn_REID_feat256_train_msmt17.pth")
+    mmt_weights = os.path.join(weights_dir, "QUANT_old_pytorch_resnet_ibn_REID_feat256_train_msmt17.pth")
 
     # Load reidentificator 
     # If calibration_bool True, creates a new reident
@@ -206,7 +207,7 @@ if __name__ == '__main__':
     tf2_ros.TransformListener(tf_buffer)
 
     seq_n = 0  # incremented for successive timestamps in tf
-    rate = rospy.Rate(10) #10hz
+    rate = rospy.Rate(30) #30hz
     while not rospy.is_shutdown():
         
         #Check if calibration is done:
@@ -228,16 +229,29 @@ if __name__ == '__main__':
 
             # Person detection
             #yolact_infer = yolact.img_inference(color_frame)
+
+            start_time = time.time()
+
             mp_infer = mediapipe_model.run(color_frame)
             #print(mp_infer)
+
+            print("MP " + str(time.time() - start_time))
+
+            start_time = time.time()
 
             #Publish the locations of the persons found to /people with a msg type people_msgs/People
             #publish_location(color_frame, depth_frame, yolact_infer, camera_synchronizer.get_camera_info(), person_buffer, person_pub, tf_buffer)
             publish_location(color_frame, depth_frame, mp_infer, camera_synchronizer.get_camera_info(), person_buffer, person_pub, tf_buffer)
 
+            print("Publish Locations " + str(time.time() - start_time))
+
+            start_time = time.time()
+
             # Person reidentification
             #reidentified_person = reident.reidentify(color_frame, yolact_infer)
             reidentified_person = reident.reidentify(color_frame, mp_infer)
+
+            print("ReID " + str(time.time() - start_time))
 
             # if no person re-identified restart detection step
             if reidentified_person is None:
@@ -246,37 +260,43 @@ if __name__ == '__main__':
 
             reidentified_mask = reidentified_person["masks"]
             reidentified_box = reidentified_person["boxes"]
-            #show this pls
-            # Draw the mask on the image
-            image_t = color_frame.copy()
-            # Ensure the mask has the same dimensions as the image
-            #if reidentified_mask.shape[:2] != image_t.shape[:2]:
-            #    reidentified_mask = cv2.resize(reidentified_mask, (image_t.shape[1], image_t.shape[0]))
 
-            mask = reidentified_mask
-            image_t[mask == 255] = [0, 255, 0]  # Color the mask region (green)
+            show = False
+            if show:
+                # Draw the mask on the image
+                image_t = color_frame.copy()
+                # Ensure the mask has the same dimensions as the image
+                if reidentified_mask.shape[:2] != image_t.shape[:2]:
+                    reidentified_mask = cv2.resize(reidentified_mask, (image_t.shape[1], image_t.shape[0]))
 
-            # Draw the bounding box on the image
-    
-            x1 = reidentified_box[0]
-            y1 = reidentified_box[1]
-            x2 = reidentified_box[2]
-            y2 = reidentified_box[3]
+                mask = reidentified_mask
+                image_t[mask == 255] = [0, 255, 0]  # Color the mask region (green)
 
-            cv2.rectangle(image_t, (x1, y1), (x2, y2), (255, 0, 0), 2)  # Blue box
+                # Draw the bounding box on the image
+        
+                x1 = reidentified_box[0]
+                y1 = reidentified_box[1]
+                x2 = reidentified_box[2]
+                y2 = reidentified_box[3]
 
-            # Show the image with masks and boxes
-            cv2.imshow("reId target",cv2.cvtColor(image_t, cv2.COLOR_BGR2RGB))
-            cv2.waitKey(1)
+                cv2.rectangle(image_t, (x1, y1), (x2, y2), (255, 0, 0), 2)  # Blue box
 
-            # Clear the image for the next person
-            image_t = np.zeros((512, 512, 3), dtype=np.uint8)
+                # Show the image with masks and boxes
+                cv2.imshow("reId target",cv2.cvtColor(image_t, cv2.COLOR_BGR2RGB))
+                cv2.waitKey(1)
+
+                # Clear the image for the next person
+                image_t = np.zeros((512, 512, 3), dtype=np.uint8)
+
+            start_time = time.time()
 
             hand_img = color_frame.copy()
             hand_img = hand_img[reidentified_box[1]:reidentified_box[3], reidentified_box[0]:reidentified_box[2], :]
 
             # initialize the prediction class as the last class is the predictor
             gesture_prediction = hand_classifier.n_support_.shape[0] - 1
+
+            print("Hand " + str(time.time() - start_time))
 
             hand_results = hand_pose.get_hand_pose(hand_img)
             if hand_results is not None:

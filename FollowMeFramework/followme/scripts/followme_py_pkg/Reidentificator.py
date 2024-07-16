@@ -32,6 +32,7 @@ from sklearn.utils import shuffle
 
 #import json
 import pickle
+import io
 
 class FastBaseTransform(torch.nn.Module):
     """

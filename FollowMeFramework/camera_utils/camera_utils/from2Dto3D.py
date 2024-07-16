@@ -41,8 +41,8 @@ def extract_contours(rgb):
     """
     gray_cluster = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
     ret, tresh = cv2.threshold(gray_cluster, 127, 255, 0)
-    cv2.imshow("grey image for contour",tresh)
-    cv2.waitKey(1)
+    #cv2.imshow("grey image for contour",tresh)
+    #cv2.waitKey(1)
     cnt, _ = cv2.findContours(tresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
     return cnt
@@ -81,8 +81,8 @@ def compute_mu(cnt, rgb=None, depth=None):
     else:
         mu = [0,0]
         print("No contours found, setting mu to 0")
-        cv2.imshow("No contours rgb", rgb)
-        cv2.waitKey(0)
+        #cv2.imshow("No contours rgb", rgb)
+        #cv2.waitKey(0)
         if rgb is not None and depth is not None:
             new_x = (float(mu[0]) / rgb.shape[0]) * depth.shape[0]
             new_y = (float(mu[1]) / rgb.shape[1]) * depth.shape[1]

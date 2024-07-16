@@ -27,7 +27,7 @@
     <!-- <node name="obstacle_avoidance_node" pkg="followme" type="obstacle_avoidance_node" respawn="false" output="screen" /> -->
 
     <!-- Launch RViz with saved configuration -->
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find followme)/rviz/rviz_config.rviz" />
+    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find followme)/rviz/rviz_config.rviz" /> -->
 
     <!-- Launch File for the Guida with internal map -->
     

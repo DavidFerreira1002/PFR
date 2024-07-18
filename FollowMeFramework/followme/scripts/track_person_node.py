@@ -257,6 +257,8 @@ if __name__ == '__main__':
             
             #IF statement to choose between ReID and Tracker
             # Use ReID
+            black_frame = np.zeros(color_frame.shape[:],dtype=np.uint8)
+            filtered_color_frame = cv2.bitwise_and(color_frame,color_frame,mask=persons_mask)
             if control_counter == 0 and not kcf_success:
                 
                 re_id_frame = color_frame.copy()
@@ -290,7 +292,10 @@ if __name__ == '__main__':
                 
                 # if kcf_success is False, restart the kcf tracker
                 if(not kcf_success):
-                    kcf_tracker = cv2.TrackerKCF_create()
+                    black_frame = np.zeros(re_id_frame.shape[:],dtype=np.uint8)
+                    filtered_re_id_frame = cv2.bitwise_and(re_id_frame,re_id_frame,mask=persons_mask)
+
+                    tracker = cv2.TrackerMIL_create()
                     #Note, the bounding box that the kcf tracker is expecting is one of the type (height,width,x,y), 
                     # what comes out of the ReID is (xmin,ymin,xmax,ymax)
                     xmin = reidentified_box[0]
@@ -299,18 +304,20 @@ if __name__ == '__main__':
                     ymax = reidentified_box[3]
                     
                     # Make the starting bouding box much smaller and on the chest of the target
-                    midpoint_x = int(xmin + ((xmax - xmin)/2))
-                    midpoint_y = int(ymin + ((ymax - ymin)/2))
-                    new_height = int((ymax - ymin))
-                    new_width = int((xmax - xmin)/1.4)
-                    new_x = int(midpoint_x - (new_width/2))
-                    new_y = int(midpoint_y - (new_height/2))
-                    tracker_bbox = [ new_x, new_y, new_width, new_height]
+                    # midpoint_x = int(xmin + ((xmax - xmin)/2))
+                    # midpoint_y = int(ymin + ((ymax - ymin)/2))
+                    # new_height = int((ymax - ymin)/3)
+                    # new_width = int((xmax - xmin)/3)
+                    # new_x = int(midpoint_x - (new_width/2))
+                    # new_y = int(midpoint_y - (new_height/2))
+                    # tracker_bbox = [ new_x, new_y, new_width, new_height]
+                    tracker_bbox = [xmin,ymin,xmax-xmin,ymax-ymin]
                     #Pass the bounding box and the frame where that bouding box was gotten from
-                    kcf_tracker.init(re_id_frame, tracker_bbox)
+                    tracker.init(filtered_re_id_frame, tracker_bbox)
                     previous_persons_mask = persons_mask
 
-                kcf_success, tracker_bbox = kcf_tracker.update(color_frame)
+                filtered_color_frame = cv2.bitwise_and(color_frame,color_frame,mask=persons_mask)
+                kcf_success, tracker_bbox = tracker.update(filtered_color_frame)
                 control_counter += 1
                 #Send it back to reidentified_box
                 reidentified_box[0] = tracker_bbox[0]
@@ -343,7 +350,7 @@ if __name__ == '__main__':
             show = True
             if show:
                 # Draw the mask on the image
-                image_t = color_frame.copy()
+                image_t = filtered_color_frame.copy()
                 # Ensure the mask has the same dimensions as the image
                 if reidentified_mask.shape[:2] != image_t.shape[:2]:
                     reidentified_mask = cv2.resize(reidentified_mask, (image_t.shape[1], image_t.shape[0]))

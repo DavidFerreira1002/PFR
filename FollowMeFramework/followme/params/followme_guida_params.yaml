@@ -34,9 +34,9 @@ track_person:
 #CONTROLS HOW THE REIDENTIFICATOR WORKS; 
 reidentificator:
   #True - does a calibration at the start and saves it to calibration_path; False- goes to calibrate_path and instances that object instead;
-  calibration_bool: True
+  calibration_bool: False
   #THE FILE MUST BE A PKL FILE -> filename.pkl, they are stored in the calibrations folder
-  calibration_filename: "calibration_david_guida_blue_shirt.pkl"
+  calibration_filename: "calibration_david_guida_red_shirt.pkl"
 
 #Parameters for the person buffer class in track_person_node (proxemics)
 person_buffer:

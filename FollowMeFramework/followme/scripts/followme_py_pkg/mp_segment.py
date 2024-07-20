@@ -3,6 +3,23 @@ import mediapipe as mp
 import numpy as np
 import matplotlib.pyplot as plt
 
+def is_valid_contour(image_BGR, mask):
+        #change from bgr to rgb
+        image_RGB = cv2.cvtColor(image_BGR, cv2.COLOR_BGR2RGB)
+        rgb_new = image_RGB.copy()
+        #use the mask on the rgb
+        for i in range(3):
+                rgb_new[:, :, i] = np.multiply(image_BGR[:, :, i], mask[ :, :])
+        #change it to gray
+        gray_cluster = cv2.cvtColor(rgb_new, cv2.COLOR_BGR2GRAY)
+        ret, tresh = cv2.threshold(gray_cluster, 127, 255, 0)
+        #calculate contour
+        cnt, _ = cv2.findContours(tresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+        if(len(cnt) > 0):
+            return True
+        else:
+            return False
+
 class MediapipeInstanceSegmentation:
     #mediapipe instance segmentation at home
 
@@ -13,7 +30,7 @@ class MediapipeInstanceSegmentation:
         
         #instance the selfie segmentation model that is used
         #after getting the boxes of the persons to get their mask
-        self.selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=0)
+        self.selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=1)
         
         #instancing the object identificator model
         BaseOptions = mp.tasks.BaseOptions
@@ -92,7 +109,7 @@ class MediapipeInstanceSegmentation:
 
             mask = masks_array[i - 1]
             #Check if person has a mask and if it has contour, skip if it does not
-            if (len(np.nonzero(mask))>0 and self.is_valid_contour(bgr, mask)):
+            if (len(np.nonzero(mask))>0 and is_valid_contour(bgr, mask)):
                 scores.append(score)
                 boxes_all.append(boxes)
                 masks_all.append(mask.astype(np.float32))
@@ -118,23 +135,6 @@ class MediapipeInstanceSegmentation:
                                                 # for now it doenst matter, its just for structure.
         
         return formatted_dict
-
-    def is_valid_contour(self, image_BGR, mask):
-        #change from bgr to rgb
-        image_RGB = cv2.cvtColor(image_BGR, cv2.COLOR_BGR2RGB)
-        rgb_new = image_BGR.copy()
-        #use the mask on the rgb
-        for i in range(3):
-                rgb_new[:, :, i] = np.multiply(image_BGR[:, :, i], mask[ :, :])
-        #change it to gray
-        gray_cluster = cv2.cvtColor(rgb_new, cv2.COLOR_BGR2GRAY)
-        ret, tresh = cv2.threshold(gray_cluster, 127, 255, 0)
-        #calculate contour
-        cnt, _ = cv2.findContours(tresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-        if(len(cnt) > 0):
-            return True
-        else:
-            return False
 
     def get_persons_boxes_scores(self, image_BGR):
         image_RGB = cv2.cvtColor(image_BGR, cv2.COLOR_BGR2RGB)
@@ -238,4 +238,4 @@ class MediapipeInstanceSegmentation:
                 plt.tight_layout()  # Adjust spacing between subplots
                 plt.show()
         
-        return self.format_detection_results(boxes_scores,out_masks,image_BGR)
+        return self.format_detection_results(boxes_scores,out_masks,image_BGR), full_mask[:,:,0]

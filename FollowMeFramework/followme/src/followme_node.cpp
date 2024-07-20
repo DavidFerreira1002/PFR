@@ -33,14 +33,14 @@
 using MoveBaseClient = actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>;
 
 // STATE ENUM
-enum states_t {GENERAL=0 ,STEADY, FOLLOW, SEARCH, WAIT, FOLLOW_NEARBY, ENUM_LENGTH};
+enum states_t {GENERAL=0 ,STEADY, FOLLOW, SEARCH, WAIT, FOLLOW_NEARBY, SEARCH_NEARBY, ENUM_LENGTH};
 
 // STATE HANDLER FOR STATE MACHINE
 class States
 {
 public:
   states_t state_m;
-  const std::string state_str_m[ENUM_LENGTH] = {"GENERAL", "STEADY", "FOLLOW", "SEARCH", "WAIT", "FOLLOW_NEARBY"};
+  const std::string state_str_m[ENUM_LENGTH] = {"GENERAL", "STEADY", "FOLLOW", "SEARCH", "WAIT", "FOLLOW_NEARBY", "SEARCH_NEARBY"};
 
   States(ros::NodeHandle& nh, const std::string& topic_name)
   {
@@ -174,7 +174,7 @@ int main(int argc, char **argv)
   n.getParam("/followme/search_const_ang_vel", constant_w);
   int direction{}; // track the direction of the person in the camera
   double turn{}; // used to track a 360° turn in SEARCH state
-  geometry_msgs::Twist search_vel; // velocity msg used in SEARCH state
+  //geometry_msgs::Twist search_vel; // velocity msg used in SEARCH state
 
   double camera_target_distance;
 
@@ -236,7 +236,7 @@ int main(int argc, char **argv)
 
     case FOLLOW: // --------FOLLOW CASE--------
       // if transform from camera to target does not exists change to search
-      if(!camera_tf_handler.updateTransform() && curr_time - last_time_seen > 1.5)
+      if(!camera_tf_handler.updateTransform() && curr_time - last_time_seen > 2.5)
       {
         // cancel last goal
         deleteRobotGoal(move_base);
@@ -255,7 +255,10 @@ int main(int argc, char **argv)
       }
 
       camera_tf_handler.updateTransform();
-      last_time_seen = ros::Time::now().toSec();
+      if(camera_tf_handler.updateTransform()){
+        last_time_seen = ros::Time::now().toSec();  
+      }
+      
       // get angle of target with respect to camera in camera_depth_optical_frame convention
       heading_angle = -std::atan2(camera_tf_handler.getPosition().x,
                                   camera_tf_handler.getPosition().z);
@@ -335,14 +338,15 @@ int main(int argc, char **argv)
 
     case FOLLOW_NEARBY: //---------------------FOLLOW NEARBY CASE--------------------------
       deleteRobotGoal(move_base);
+
       // if transform from camera to target does not exists change to search
-      if(!camera_tf_handler.updateTransform() && curr_time - last_time_seen > 1.5)
+      if(!camera_tf_handler.updateTransform() && curr_time - last_time_seen > 2.5)
       {
         // compute last direction
         direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
         // reinitialize the turn variable
         turn = M_PI*2;
-        state_handler.changeStateTo(SEARCH);
+        state_handler.changeStateTo(SEARCH_NEARBY);
         break;
       }
       else if(gesture_handler.getCurrentGesture() == 0)
@@ -353,7 +357,10 @@ int main(int argc, char **argv)
       }
 
       camera_tf_handler.updateTransform();
-      last_time_seen = ros::Time::now().toSec();
+      if(camera_tf_handler.updateTransform()){
+        last_time_seen = ros::Time::now().toSec();  
+      }
+
       // get angle of target with respect to camera in camera_depth_optical_frame convention
       heading_angle = -std::atan2(camera_tf_handler.getPosition().x,
                                   camera_tf_handler.getPosition().z);
@@ -385,8 +392,43 @@ int main(int argc, char **argv)
         w_search = 0;
         state_handler.changeStateTo(STEADY);
       }
-      search_vel.linear.x = v_search;
-      search_vel.angular.z = w_search;
+      // search_vel.linear.x = v_search;
+      // search_vel.angular.z = w_search;
+
+      //pub.publish(search_vel);
+
+      break;
+
+
+    case SEARCH_NEARBY: //--------------SEARCH NEARBY CASE
+
+      v_search    =  0;
+      w_search    =  direction * constant_w;
+      turn -= abs(w_search) * delta_t;
+
+      if(camera_tf_handler.updateTransform())
+      {
+        v_search = 0;
+        w_search = 0;
+        camera_target_distance = camera_tf_handler.getDistance();
+        // check if person is inside the safety circle
+        if (camera_target_distance < safety_circle_radius)
+        {
+          state_handler.changeStateTo(FOLLOW_NEARBY);
+        }
+        else
+        {
+          state_handler.changeStateTo(FOLLOW);
+        }
+      }
+      else if (turn < 0 || direction == 0)
+      {
+        v_search = 0;
+        w_search = 0;
+        state_handler.changeStateTo(STEADY);
+      }
+      // search_vel.linear.x = v_search;
+      // search_vel.angular.z = w_search;
 
       //pub.publish(search_vel);
 

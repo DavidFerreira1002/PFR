@@ -30,7 +30,7 @@ class MediapipeInstanceSegmentation:
         
         #instance the selfie segmentation model that is used
         #after getting the boxes of the persons to get their mask
-        self.selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=0)
+        self.selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=1)
         
         #instancing the object identificator model
         BaseOptions = mp.tasks.BaseOptions

@@ -80,9 +80,6 @@ def compute_mu(cnt, rgb=None, depth=None):
         mu = [round(new_x), round(new_y)]
     else:
         mu = [0,0]
-        print("No contours found, setting mu to 0")
-        #cv2.imshow("No contours rgb", rgb)
-        #cv2.waitKey(0)
         if rgb is not None and depth is not None:
             new_x = (float(mu[0]) / rgb.shape[0]) * depth.shape[0]
             new_y = (float(mu[1]) / rgb.shape[1]) * depth.shape[1]
@@ -286,12 +283,10 @@ def compute_centroids(rgb, depth, mask, intrinsics, use_pcd=True):
 
             # Extract non-zero elements using the indices
             non_zero_elements = mask[j][non_zero_indices]
-            #print(non_zero_elements)
             if len(non_zero_elements) > 0:
                 alpha = compute_angle_from_mask(mask[j])
             else:
                 alpha = 0.0
-                print("Mask was all 0, alpha set as 0.0")
 
             # compute center
             rgb_o3d = o3d.geometry.Image(rgb_new)
@@ -327,12 +322,10 @@ def compute_centroids(rgb, depth, mask, intrinsics, use_pcd=True):
 
             # Extract non-zero elements using the indices
             non_zero_elements = mask[j][non_zero_indices]
-            #print(non_zero_elements)
             if len(non_zero_elements) > 0:
                 alpha = compute_angle_from_mask(mask[j])
             else:
                 alpha = 0.0
-                print("Mask was all 0, alpha set as 0.0")
 
             # append the centroid and the angle of the considered mask in the list.
             points_and_angles.append([center, alpha])

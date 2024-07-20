@@ -1,5 +1,7 @@
 #DWAPlannerROS:
 recovery_behaviour_enable: false
+transform_tolerance: 5.0
+controller_frequency: 10.0
 
 TrajectoryPlannerROS:
   max_vel_x: 0.6

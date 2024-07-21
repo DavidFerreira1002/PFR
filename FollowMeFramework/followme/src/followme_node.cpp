@@ -29,6 +29,7 @@
 #include "followme/GestureHandler.h"
 #include "followme/GeneralControlHandler.h"
 #include "followme/SearchNearbyHandler.h"
+#include "followme/TargetSideHandler.h"
 
 #include <std_msgs/String.h>
 using MoveBaseClient = actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>;
@@ -70,13 +71,9 @@ void deleteRobotGoal(MoveBaseClient& mvb)
   // delete the move base goal
   if (mvb.getState() == actionlib::SimpleClientGoalState::ACTIVE)
   {
+    ROS_INFO("Deleted move base goal.");
     mvb.cancelGoal();
   }
-}
-
-void testCallback(const std_msgs::Int32& msg)
-{
-  ROS_INFO("TEST TEST TEST");
 }
 
 int main(int argc, char **argv)
@@ -113,6 +110,9 @@ int main(int argc, char **argv)
   // Search nearby handler
   SearchNearbyHandler search_nearby_handler(n);
 
+  // Target side handler
+  TargetSideHandler target_side_handler(n);
+
   bool is_robot_waiting{true};
 
   // Gesture subscriber
@@ -122,7 +122,9 @@ int main(int argc, char **argv)
   std::string cmd_vel_topic, cmd_vel_father_frame_id;
   n.getParam("/followme/robot_base_tf_name", cmd_vel_father_frame_id);
   n.getParam("/followme/cmd_vel_topic_name", cmd_vel_topic);
-  ros::Publisher pub = n.advertise<geometry_msgs::Twist>(cmd_vel_topic, 100);
+  ros::Publisher cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_topic, 100);
+  geometry_msgs::Twist cmd_vel;
+
 
   //--------------------------------------------------------------------
   TransformHandler robot_tf_handler(map_tf, cmd_vel_father_frame_id);
@@ -181,6 +183,7 @@ int main(int argc, char **argv)
   //double turn{}; // used to track a 360° turn in SEARCH state
   //geometry_msgs::Twist search_vel; // velocity msg used in SEARCH state
   bool search_start_flag = false;
+  bool rotating_flag = false;
 
   double camera_target_distance;
 
@@ -216,7 +219,6 @@ int main(int argc, char **argv)
       break; 
 
     case STEADY: // --------STEADY CASE--------
-
       // stop the robot by deleting the goal
       deleteRobotGoal(move_base);
 
@@ -384,28 +386,102 @@ int main(int argc, char **argv)
       break;
 
     case SEARCH: // --------SEARCH CASE--------  
-
+      //Checks target first, then if it should rotate, then if the search has already started since
+      // we only want one goal to be sent, if at the end of 15 secs it doesnt find it, we turn
+      // on the rotating flag, it will now try to rotate.
+      //While rotating it will check in what side the target was, rotate 90 degrees that way and then
+      // rotate 180 degrees the other way, and go back 90 degrees to center again and change to STEADY.
+      //Sadly we need to time it, so this will probably change if the rate goes under 10Hz.
       if(camera_tf_handler.updateTransform())
       {
+        //reset the vars
         deleteRobotGoal(move_base);
         search_start_flag = false;
+        rotating_flag = false;
+        cmd_vel.linear.x = 0.0;
+        cmd_vel.angular.z = 0.0;
+        //change to FOLLOW because we found the target, I hope it is the target atleast
         state_handler.changeStateTo(FOLLOW);
       }
-      else if(!search_start_flag){
+      else if(rotating_flag)
+      {
+        //first rotation 90
+        if((ros::Time::now() - start_time).toSec() < (15.0 + 6.24))
+        {
+          if(target_side_handler.getTargetSide() == "LEFT")
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = 0.5;
+          }
+          else
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = -0.5;
+          }
+
+        }
+        //second rotation 180
+        else if((ros::Time::now() - start_time).toSec() < (15.0 + 6.24 + 12.56))
+        {
+          if(target_side_handler.getTargetSide() == "LEFT")
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = -0.5;
+          }
+          else
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = 0.5;            
+          }
+        }
+        //third rotation 90 (back to the start)
+        else if((ros::Time::now() - start_time).toSec() < (15.0 + 6.24 + 12.56 + 6.24))
+        {
+          if(target_side_handler.getTargetSide() == "LEFT")
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = 0.5;
+          }
+          else
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = -0.5;            
+          }
+        }
+        else
+        { 
+          // Reset everything, some might not be necessary but just making sure
+          //that the endpoints all agree 
+          deleteRobotGoal(move_base);
+          search_start_flag = false;
+          rotating_flag = false;
+          cmd_vel.linear.x = 0.0;
+          cmd_vel.angular.z = 0.0;
+          // We did not find the target, sad, change to STEADY
+          state_handler.changeStateTo(STEADY);
+        }
+        cmd_vel_pub.publish(cmd_vel);
+      }
+      else if(!search_start_flag)
+      {
         search_start_flag = true;
         move_base.sendGoal(old_goal);
         start_time = ros::Time::now();
       }
-      else{
-        if((ros::Time::now() - start_time).toSec() > 15.0){
+      else
+      {
+        if((ros::Time::now() - start_time).toSec() > 15.0)
+        {
           deleteRobotGoal(move_base);
           search_start_flag = false;
-          state_handler.changeStateTo(STEADY);
+          rotating_flag = true;
+          cmd_vel.linear.x = 0.0;
+          cmd_vel.angular.z = 0.0;
         }
       }
       break;
 
-    case SEARCH_NEARBY: //--------------SEARCH NEARBY CASE
+    case SEARCH_NEARBY: //--------------SEARCH NEARBY CASE--------------
 
       if(camera_tf_handler.updateTransform())
       {

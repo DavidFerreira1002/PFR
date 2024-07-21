@@ -162,6 +162,7 @@ int main(int argc, char **argv)
 
   // goal initialization
   move_base_msgs::MoveBaseGoal curr_goal;
+  move_base_msgs::MoveBaseGoal old_goal;
   curr_goal.target_pose.header.frame_id = map_tf;
   curr_goal.target_pose.header.seq = count;
 
@@ -173,16 +174,18 @@ int main(int argc, char **argv)
   n.getParam("/followme/goal_threshold", goal_threshold);
 
   // SEARCH state variables
-  double v_search{}, w_search{}; // linear and angular velocity used in SEARCH state
-  double constant_w; // constant angular velocity during SEARCH state
-  n.getParam("/followme/search_const_ang_vel", constant_w);
-  int direction{}; // track the direction of the person in the camera
-  double turn{}; // used to track a 360° turn in SEARCH state
+  //double v_search{}, w_search{}; // linear and angular velocity used in SEARCH state
+  //double constant_w; // constant angular velocity during SEARCH state
+  //n.getParam("/followme/search_const_ang_vel", constant_w);
+  //int direction{}; // track the direction of the person in the camera
+  //double turn{}; // used to track a 360° turn in SEARCH state
   //geometry_msgs::Twist search_vel; // velocity msg used in SEARCH state
+  bool search_start_flag = false;
 
   double camera_target_distance;
 
   // time variables
+  ros::Time start_time = ros::Time::now();
   ros::Time time;
   double time_prev{ros::Time::now().toSec()}, // [s] previous  time
          curr_time,                           // [s] curr time
@@ -245,9 +248,9 @@ int main(int argc, char **argv)
         // cancel last goal
         deleteRobotGoal(move_base);
         // compute last direction
-        direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
+        //direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
         // reinitialize the turn variable
-        turn = M_PI*2;
+        //turn = M_PI*2;
         state_handler.changeStateTo(SEARCH);
         break;
       }
@@ -330,6 +333,8 @@ int main(int argc, char **argv)
         //ROS_INFO_STREAM(curr_goal.target_pose.pose.orientation.w);
         curr_goal.target_pose.header.seq = count;
         curr_goal.target_pose.header.stamp = map_tf_handler.getTimeStamp(); // ros::Time::now();
+        //save the current goal to use if necessary on the SEARCH case
+        old_goal = curr_goal;
 
         move_base.sendGoal(curr_goal);
         ROS_INFO("Sent new goal to move_base.");
@@ -347,9 +352,9 @@ int main(int argc, char **argv)
       if(!camera_tf_handler.updateTransform() && curr_time - last_time_seen > 2.5)
       {
         // compute last direction
-        direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
+        //direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
         // reinitialize the turn variable
-        turn = M_PI*2;
+        //turn = M_PI*2;
         state_handler.changeStateTo(SEARCH_NEARBY);
         break;
       }
@@ -380,29 +385,25 @@ int main(int argc, char **argv)
 
     case SEARCH: // --------SEARCH CASE--------  
 
-      v_search    =  0;
-      w_search    =  direction * constant_w;
-      turn -= abs(w_search) * delta_t;
-
       if(camera_tf_handler.updateTransform())
       {
-        v_search = 0;
-        w_search = 0;
+        deleteRobotGoal(move_base);
+        search_start_flag = false;
         state_handler.changeStateTo(FOLLOW);
       }
-      else if (turn < 0 || direction == 0)
-      {
-        v_search = 0;
-        w_search = 0;
-        state_handler.changeStateTo(STEADY);
+      else if(!search_start_flag){
+        search_start_flag = true;
+        move_base.sendGoal(old_goal);
+        start_time = ros::Time::now();
       }
-      // search_vel.linear.x = v_search;
-      // search_vel.angular.z = w_search;
-
-      //pub.publish(search_vel);
-
+      else{
+        if((ros::Time::now() - start_time).toSec() > 15.0){
+          deleteRobotGoal(move_base);
+          search_start_flag = false;
+          state_handler.changeStateTo(STEADY);
+        }
+      }
       break;
-
 
     case SEARCH_NEARBY: //--------------SEARCH NEARBY CASE
 

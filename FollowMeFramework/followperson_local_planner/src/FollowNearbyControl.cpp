@@ -1,13 +1,13 @@
 
 #include "followperson_local_planner/FollowNearbyControl.h"
-#
+
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <angles/angles.h>
 #include <tf2/utils.h>
 #include <std_msgs/String.h>
 #include <costmap_2d/costmap_2d_ros.h>
 #include <tf2_ros/transform_listener.h>
-
+#include <std_msgs/Bool.h>
 
 
 FollowNearbyControl::FollowNearbyControl(): 
@@ -22,6 +22,10 @@ void FollowNearbyControl::initialize(tf2_ros::Buffer* tf, costmap_2d::Costmap2DR
         previous_error = 0.0;
         current_time_ = ros::Time::now();
         previous_time_ = current_time_;
+        search_start_flag_ = false;
+        search_end_flag_ = false;
+        search_state_msg_.data = false;
+        start_time_ = ros::Time::now();
 
         // Initialize parameters
         nh_.getParam("/FollowPersonLocalPlanner/yaw_goal_tolerance", yaw_goal_tolerance_);
@@ -32,10 +36,11 @@ void FollowNearbyControl::initialize(tf2_ros::Buffer* tf, costmap_2d::Costmap2DR
         nh_.getParam("/followme/cmd_vel_topic_name", cmd_vel_topic_name_);
         
         cmd_vel_pub_ = nh_.advertise<geometry_msgs::Twist>(cmd_vel_topic_name_, 10);
+        search_end_pub_ = nh_.advertise<std_msgs::Bool>("/search_nearby_state", 2);
         person_position_sub_ = nh_.subscribe("/target_position", 10, &FollowNearbyControl::personPositionCallback, this);
         state_handler_sub_ = nh_.subscribe(state_topic_name_, 2, &FollowNearbyControl::stateCallback, this);
+        target_side_sub_ = nh_.subscribe("/target_side",2,&FollowNearbyControl::targetSideCallback,this);
 
-        
         initialized_ = true;
         ROS_INFO("Follow Nearby Control initialized");
     }
@@ -117,6 +122,72 @@ bool FollowNearbyControl::keepPersonCenter(){
     return true;
 }
 
+bool FollowNearbyControl::searchNearby(){
+    if (!initialized_) {
+            ROS_ERROR("FollowNearbyControl has not been initialized");
+            return false;
+        }
+
+    geometry_msgs::PoseStamped robot_pose;
+    if (!costmap_ros_->getRobotPose(robot_pose)) {
+        ROS_WARN("Could not get robot pose");
+        return false;
+    }
+    
+    if(current_state_ == "SEARCH_NEARBY"){
+
+        if(!search_start_flag_ && !search_end_flag_)
+        {
+            search_start_flag_ = true;
+            start_time_ = ros::Time::now();
+            search_state_msg_.data = false;
+            search_end_pub_.publish(search_state_msg_);
+            
+        }
+        else
+        {
+            if((ros::Time::now() - start_time_).toSec() < 12.56)
+            {
+
+                if(current_side_ == "RIGHT"){                  
+                    cmd_vel_.linear.x = 0.0;
+                    cmd_vel_.angular.z = -0.5;
+                }
+                if(current_side_ == "LEFT"){                  
+                    cmd_vel_.linear.x = 0.0;
+                    cmd_vel_.angular.z = 0.5;
+                }
+            }
+            else
+            {
+                cmd_vel_.linear.x = 0.0;
+                cmd_vel_.angular.z = 0.0;
+                // search ended, publish it to warn the executive layer
+                search_end_flag_ = true;
+                search_state_msg_.data = search_end_flag_;
+                search_end_pub_.publish(search_state_msg_);
+
+            }
+            cmd_vel_pub_.publish(cmd_vel_);
+        }
+        
+        
+        
+    }
+    else{
+        // reset search nearby if it needsd to be reset
+        if (search_start_flag_ == true || search_end_flag_ == true){
+            search_start_flag_ = false;
+            search_end_flag_ = false;
+            search_state_msg_.data = search_end_flag_;
+            search_end_pub_.publish(search_state_msg_);
+        }
+
+    }
+    return true;
+
+}
+
 void FollowNearbyControl::personPositionCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
     person_position_ = *msg;
     person_position_received_ = true;
@@ -124,4 +195,8 @@ void FollowNearbyControl::personPositionCallback(const geometry_msgs::PoseStampe
 
 void FollowNearbyControl::stateCallback(const std_msgs::String::ConstPtr& msg){
     current_state_ = msg->data;
+}
+
+void FollowNearbyControl::targetSideCallback(const std_msgs::String::ConstPtr& msg){
+    current_side_ = msg->data;
 }

@@ -214,6 +214,12 @@ if __name__ == '__main__':
     state_topic_name = rospy.get_param('state/topic_name')
     current_state = StateHandler(state_topic_name)
     
+    #----------Person Screen Side Publisher-------
+    screen_side_pub = rospy.Publisher('/target_side',String, queue_size=5)
+    screen_side = ""
+    previous_screen_side = ""
+    screen_side_msg = String()
+
     #----------START OF LOOPS---------------------
     #Needs to be 1 loop
     #Check if calibration is done, if TRUE, jump to the REID,
@@ -348,7 +354,26 @@ if __name__ == '__main__':
                     y2 = reidentified_box[3]
                     temp_mask[y1:y2,x1:x2] = 255
                     reidentified_mask = cv2.bitwise_and(persons_mask, persons_mask, mask=temp_mask)
+                
 
+                # Publish the side the person last was
+                midpoint_x = reidentified_box[0] + (reidentified_box[2] - reidentified_box[0])/2
+                image_midpoint = color_frame.shape[1]/2
+                
+                if midpoint_x > image_midpoint:
+                    #left
+                    screen_side = "RIGHT"
+                else:
+                    #right
+                    screen_side = "LEFT"
+
+                if not screen_side == "" and screen_side != previous_screen_side:
+                    screen_side_msg.data = screen_side
+                    previous_screen_side = screen_side
+                    screen_side_pub.publish(screen_side_msg)
+                
+
+                # Debug only, in production keep it False
                 show = True
                 if show:
                     # Draw the mask on the image

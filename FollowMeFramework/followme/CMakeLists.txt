@@ -35,9 +35,12 @@ target_link_libraries(gesture_handler ${catkin_LIBRARIES})
 add_library(general_control_handler src/GeneralControlHandler.cpp)
 target_link_libraries(general_control_handler ${catkin_LIBRARIES})
 
+add_library(search_nearby_handler src/SearchNearbyHandler.cpp)
+target_link_libraries(search_nearby_handler ${catkin_LIBRARIES})
+
 # move base navigation controller
 add_executable(followme_node src/followme_node.cpp)
-target_link_libraries(followme_node transform_handler gesture_handler general_control_handler  ${catkin_LIBRARIES})
+target_link_libraries(followme_node transform_handler gesture_handler general_control_handler search_nearby_handler  ${catkin_LIBRARIES})
 
 add_executable(obstacle_avoidance_node src/obstacle_avoidance_node.cpp)
 target_link_libraries(obstacle_avoidance_node ${catkin_LIBRARIES})

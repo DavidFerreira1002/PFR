@@ -28,6 +28,7 @@
 #include "followme/TransformHandler.h"
 #include "followme/GestureHandler.h"
 #include "followme/GeneralControlHandler.h"
+#include "followme/SearchNearbyHandler.h"
 
 #include <std_msgs/String.h>
 using MoveBaseClient = actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>;
@@ -108,6 +109,9 @@ int main(int argc, char **argv)
 
   // Gesture handler
   GestureHandler gesture_handler(gesture_filtering_number, n);
+
+  // Search nearby handler
+  SearchNearbyHandler search_nearby_handler(n);
 
   bool is_robot_waiting{true};
 
@@ -402,14 +406,8 @@ int main(int argc, char **argv)
 
     case SEARCH_NEARBY: //--------------SEARCH NEARBY CASE
 
-      v_search    =  0;
-      w_search    =  direction * constant_w;
-      turn -= abs(w_search) * delta_t;
-
       if(camera_tf_handler.updateTransform())
       {
-        v_search = 0;
-        w_search = 0;
         camera_target_distance = camera_tf_handler.getDistance();
         // check if person is inside the safety circle
         if (camera_target_distance < safety_circle_radius)
@@ -419,19 +417,12 @@ int main(int argc, char **argv)
         else
         {
           state_handler.changeStateTo(FOLLOW);
-        }
+        } 
       }
-      else if (turn < 0 || direction == 0)
+      else if (search_nearby_handler.getSearchState())
       {
-        v_search = 0;
-        w_search = 0;
-        state_handler.changeStateTo(STEADY);
+        state_handler.changeStateTo(SEARCH);
       }
-      // search_vel.linear.x = v_search;
-      // search_vel.angular.z = w_search;
-
-      //pub.publish(search_vel);
-
       break;
 
     case WAIT: // --------WAIT CASE--------

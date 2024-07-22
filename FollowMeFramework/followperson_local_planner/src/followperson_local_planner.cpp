@@ -56,6 +56,7 @@ void FollowPersonLocalPlanner::runFollowNearbyControl() {
     ros::Rate rate(10); // 10 Hz
     while (ros::ok()) {
         follow_nearby_control.keepPersonCenter();
+        follow_nearby_control.searchNearby();
         rate.sleep();
     }
 }
@@ -133,7 +134,9 @@ bool FollowPersonLocalPlanner::computeVelocityCommands(geometry_msgs::Twist& cmd
     }
     else if(state_ == "SEARCH"){
         
-        ROS_INFO("IN SEARCHING-NOT IMPLEMENTED YET");
+        // Use DWA Planner for normal navigation
+        traj_planner_.setPlan(global_plan_);
+        return traj_planner_.computeVelocityCommands(cmd_vel);
     }
     else if(state_ == "FOLLOW_NEARBY"){
         return true;

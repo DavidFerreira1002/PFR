@@ -4,7 +4,7 @@
   <version>1.0.0</version>
   <description>The FollowMe package</description>
 
-  
+  <!-- This is the mantainer of the old followme package, a lot of stuff has been changed since then.-->
   <maintainer email="rollo.f96@gmail.com">Federico Rollo</maintainer>
   <author email="rollo.f96@gmail.com">Federico Rollo</author>
 

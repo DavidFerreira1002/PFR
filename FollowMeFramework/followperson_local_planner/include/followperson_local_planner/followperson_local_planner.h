@@ -27,7 +27,7 @@ public:
     bool computeVelocityCommands(geometry_msgs::Twist& cmd_vel) override;
     bool isGoalReached() override;
     bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) override;
-
+    
 private:
     void runFollowNearbyControl();
     tf2_ros::Buffer* tf_;

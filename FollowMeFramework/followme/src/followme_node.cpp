@@ -28,6 +28,8 @@
 #include "followme/TransformHandler.h"
 #include "followme/GestureHandler.h"
 #include "followme/GeneralControlHandler.h"
+#include "followme/SearchNearbyHandler.h"
+#include "followme/TargetSideHandler.h"
 
 #include <std_msgs/String.h>
 using MoveBaseClient = actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>;
@@ -69,13 +71,9 @@ void deleteRobotGoal(MoveBaseClient& mvb)
   // delete the move base goal
   if (mvb.getState() == actionlib::SimpleClientGoalState::ACTIVE)
   {
+    ROS_INFO("Deleted move base goal.");
     mvb.cancelGoal();
   }
-}
-
-void testCallback(const std_msgs::Int32& msg)
-{
-  ROS_INFO("TEST TEST TEST");
 }
 
 int main(int argc, char **argv)
@@ -109,6 +107,12 @@ int main(int argc, char **argv)
   // Gesture handler
   GestureHandler gesture_handler(gesture_filtering_number, n);
 
+  // Search nearby handler
+  SearchNearbyHandler search_nearby_handler(n);
+
+  // Target side handler
+  TargetSideHandler target_side_handler(n);
+
   bool is_robot_waiting{true};
 
   // Gesture subscriber
@@ -118,7 +122,9 @@ int main(int argc, char **argv)
   std::string cmd_vel_topic, cmd_vel_father_frame_id;
   n.getParam("/followme/robot_base_tf_name", cmd_vel_father_frame_id);
   n.getParam("/followme/cmd_vel_topic_name", cmd_vel_topic);
-  ros::Publisher pub = n.advertise<geometry_msgs::Twist>(cmd_vel_topic, 100);
+  ros::Publisher cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_topic, 100);
+  geometry_msgs::Twist cmd_vel;
+
 
   //--------------------------------------------------------------------
   TransformHandler robot_tf_handler(map_tf, cmd_vel_father_frame_id);
@@ -158,6 +164,7 @@ int main(int argc, char **argv)
 
   // goal initialization
   move_base_msgs::MoveBaseGoal curr_goal;
+  move_base_msgs::MoveBaseGoal old_goal;
   curr_goal.target_pose.header.frame_id = map_tf;
   curr_goal.target_pose.header.seq = count;
 
@@ -169,16 +176,19 @@ int main(int argc, char **argv)
   n.getParam("/followme/goal_threshold", goal_threshold);
 
   // SEARCH state variables
-  double v_search{}, w_search{}; // linear and angular velocity used in SEARCH state
-  double constant_w; // constant angular velocity during SEARCH state
-  n.getParam("/followme/search_const_ang_vel", constant_w);
-  int direction{}; // track the direction of the person in the camera
-  double turn{}; // used to track a 360° turn in SEARCH state
+  //double v_search{}, w_search{}; // linear and angular velocity used in SEARCH state
+  //double constant_w; // constant angular velocity during SEARCH state
+  //n.getParam("/followme/search_const_ang_vel", constant_w);
+  //int direction{}; // track the direction of the person in the camera
+  //double turn{}; // used to track a 360° turn in SEARCH state
   //geometry_msgs::Twist search_vel; // velocity msg used in SEARCH state
+  bool search_start_flag = false;
+  bool rotating_flag = false;
 
   double camera_target_distance;
 
   // time variables
+  ros::Time start_time = ros::Time::now();
   ros::Time time;
   double time_prev{ros::Time::now().toSec()}, // [s] previous  time
          curr_time,                           // [s] curr time
@@ -209,7 +219,6 @@ int main(int argc, char **argv)
       break; 
 
     case STEADY: // --------STEADY CASE--------
-
       // stop the robot by deleting the goal
       deleteRobotGoal(move_base);
 
@@ -241,9 +250,9 @@ int main(int argc, char **argv)
         // cancel last goal
         deleteRobotGoal(move_base);
         // compute last direction
-        direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
+        //direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
         // reinitialize the turn variable
-        turn = M_PI*2;
+        //turn = M_PI*2;
         state_handler.changeStateTo(SEARCH);
         break;
       }
@@ -326,6 +335,8 @@ int main(int argc, char **argv)
         //ROS_INFO_STREAM(curr_goal.target_pose.pose.orientation.w);
         curr_goal.target_pose.header.seq = count;
         curr_goal.target_pose.header.stamp = map_tf_handler.getTimeStamp(); // ros::Time::now();
+        //save the current goal to use if necessary on the SEARCH case
+        old_goal = curr_goal;
 
         move_base.sendGoal(curr_goal);
         ROS_INFO("Sent new goal to move_base.");
@@ -343,9 +354,9 @@ int main(int argc, char **argv)
       if(!camera_tf_handler.updateTransform() && curr_time - last_time_seen > 2.5)
       {
         // compute last direction
-        direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
+        //direction = static_cast<int>((0 < heading_angle) - (heading_angle < 0));
         // reinitialize the turn variable
-        turn = M_PI*2;
+        //turn = M_PI*2;
         state_handler.changeStateTo(SEARCH_NEARBY);
         break;
       }
@@ -375,41 +386,105 @@ int main(int argc, char **argv)
       break;
 
     case SEARCH: // --------SEARCH CASE--------  
-
-      v_search    =  0;
-      w_search    =  direction * constant_w;
-      turn -= abs(w_search) * delta_t;
-
+      //Checks target first, then if it should rotate, then if the search has already started since
+      // we only want one goal to be sent, if at the end of 15 secs it doesnt find it, we turn
+      // on the rotating flag, it will now try to rotate.
+      //While rotating it will check in what side the target was, rotate 90 degrees that way and then
+      // rotate 180 degrees the other way, and go back 90 degrees to center again and change to STEADY.
+      //Sadly we need to time it, so this will probably change if the rate goes under 10Hz.
       if(camera_tf_handler.updateTransform())
       {
-        v_search = 0;
-        w_search = 0;
+        //reset the vars
+        deleteRobotGoal(move_base);
+        search_start_flag = false;
+        rotating_flag = false;
+        cmd_vel.linear.x = 0.0;
+        cmd_vel.angular.z = 0.0;
+        //change to FOLLOW because we found the target, I hope it is the target atleast
         state_handler.changeStateTo(FOLLOW);
       }
-      else if (turn < 0 || direction == 0)
+      else if(rotating_flag)
       {
-        v_search = 0;
-        w_search = 0;
-        state_handler.changeStateTo(STEADY);
+        //first rotation 90
+        if((ros::Time::now() - start_time).toSec() < (15.0 + 6.24))
+        {
+          if(target_side_handler.getTargetSide() == "LEFT")
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = 0.5;
+          }
+          else
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = -0.5;
+          }
+
+        }
+        //second rotation 180
+        else if((ros::Time::now() - start_time).toSec() < (15.0 + 6.24 + 12.56))
+        {
+          if(target_side_handler.getTargetSide() == "LEFT")
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = -0.5;
+          }
+          else
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = 0.5;            
+          }
+        }
+        //third rotation 90 (back to the start)
+        else if((ros::Time::now() - start_time).toSec() < (15.0 + 6.24 + 12.56 + 6.24))
+        {
+          if(target_side_handler.getTargetSide() == "LEFT")
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = 0.5;
+          }
+          else
+          {
+            cmd_vel.linear.x = 0.0;
+            cmd_vel.angular.z = -0.5;            
+          }
+        }
+        else
+        { 
+          // Reset everything, some might not be necessary but just making sure
+          //that the endpoints all agree 
+          deleteRobotGoal(move_base);
+          search_start_flag = false;
+          rotating_flag = false;
+          cmd_vel.linear.x = 0.0;
+          cmd_vel.angular.z = 0.0;
+          // We did not find the target, sad, change to STEADY
+          state_handler.changeStateTo(STEADY);
+        }
+        cmd_vel_pub.publish(cmd_vel);
       }
-      // search_vel.linear.x = v_search;
-      // search_vel.angular.z = w_search;
-
-      //pub.publish(search_vel);
-
+      else if(!search_start_flag)
+      {
+        search_start_flag = true;
+        move_base.sendGoal(old_goal);
+        start_time = ros::Time::now();
+      }
+      else
+      {
+        if((ros::Time::now() - start_time).toSec() > 15.0)
+        {
+          deleteRobotGoal(move_base);
+          search_start_flag = false;
+          rotating_flag = true;
+          cmd_vel.linear.x = 0.0;
+          cmd_vel.angular.z = 0.0;
+        }
+      }
       break;
 
-
-    case SEARCH_NEARBY: //--------------SEARCH NEARBY CASE
-
-      v_search    =  0;
-      w_search    =  direction * constant_w;
-      turn -= abs(w_search) * delta_t;
+    case SEARCH_NEARBY: //--------------SEARCH NEARBY CASE--------------
 
       if(camera_tf_handler.updateTransform())
       {
-        v_search = 0;
-        w_search = 0;
         camera_target_distance = camera_tf_handler.getDistance();
         // check if person is inside the safety circle
         if (camera_target_distance < safety_circle_radius)
@@ -419,19 +494,12 @@ int main(int argc, char **argv)
         else
         {
           state_handler.changeStateTo(FOLLOW);
-        }
+        } 
       }
-      else if (turn < 0 || direction == 0)
+      else if (search_nearby_handler.getSearchState())
       {
-        v_search = 0;
-        w_search = 0;
-        state_handler.changeStateTo(STEADY);
+        state_handler.changeStateTo(SEARCH);
       }
-      // search_vel.linear.x = v_search;
-      // search_vel.angular.z = w_search;
-
-      //pub.publish(search_vel);
-
       break;
 
     case WAIT: // --------WAIT CASE--------
